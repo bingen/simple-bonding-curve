@@ -20,8 +20,6 @@ One important assumption is that the fractional exponent is always going to be o
 
 To calculate that nth root we use the [classical method based](https://en.wikipedia.org/wiki/Nth_root_algorithm) on Newton's method for finding zeroes of functions.
 
-Another important assumption, derived from purchase formula for this family of curves, is that the base of that nth root computation will always be in the interval `[1,2]`, as it's coming from the term `(1 + p/b)^(1/n)` and `0 <= p <= b` always holds true.
-
 ## Fixed point library
 
 We used [this](https://github.com/CementDAO/Fixidity) as an inspiration, but we ended up creating our own mainly for the following reasons:
