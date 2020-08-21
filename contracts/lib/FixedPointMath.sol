@@ -58,15 +58,6 @@ library FixedPointMath {
      * This line is always over, as the derivative of that curve is decreasing from x=1 on
      * Therefore the initial value will always be bigger than the sought value,
      * which seems to behave better for these family of curves.
-     * One important assumption is that we are computing roots of values in the interval [1,2]
-     * This is due to the fact that they come from the term (1 + p / b)^(1/(n+1)) in the Bancor formula,
-     * where always 0 <= p <= b
-     * So the error in this initial value will be relatively small, specially when close to 1
-     * i.e., when the deposit amount for the purchase is small relative to the total balance,
-     * which seems to be a fairly common case.
-     * A possible improvement could be to divide that interval [1,2] in, let's say, 10 sub-intervals of 0.1
-     * and then pre-compute and harcode here initial values for each region (using the smame method of the tnagent line)
-     * that would be specially useful if we already know the order of our curve (n), which is not going to change (often)
      */
     function rootFixed(uint256 base, uint256 n) internal pure returns (uint256) {
         uint256 initialValue = (base + (n - 1) * FIXED_1) / n;
