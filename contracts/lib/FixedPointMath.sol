@@ -25,7 +25,7 @@ library FixedPointMath {
         return a.mul(FIXED_1) / b;
     }
 
-    function powFixed(uint256 base, uint8 exp) internal pure returns (uint256 result) {
+    function powFixed(uint256 base, uint256 exp) internal pure returns (uint256 result) {
         if (exp == 0) {
             return 1;
         }
@@ -68,12 +68,12 @@ library FixedPointMath {
      * and then pre-compute and harcode here initial values for each region (using the smame method of the tnagent line)
      * that would be specially useful if we already know the order of our curve (n), which is not going to change (often)
      */
-    function rootFixed(uint256 base, uint8 n) internal pure returns (uint256) {
+    function rootFixed(uint256 base, uint256 n) internal pure returns (uint256) {
         uint256 initialValue = (base + (n - 1) * FIXED_1) / n;
         return _rootIteration(base, n, initialValue);
     }
 
-    function _rootIteration(uint256 base, uint8 n, uint256 previous) private pure returns (uint256) {
+    function _rootIteration(uint256 base, uint256 n, uint256 previous) private pure returns (uint256) {
         // TODO: try to do base / previous.mul(powFixed(previous, n - 2))
         uint256 delta1 = divideFixed(base, powFixed(previous, n - 1));
         bool deltaPositive = false;
@@ -94,7 +94,7 @@ library FixedPointMath {
     }
 
     /*
-    function rootFixed2(uint256 base, uint8 n, uint256 N) internal pure returns (uint256 result) {
+    function rootFixed2(uint256 base, uint256 n, uint256 N) internal pure returns (uint256 result) {
         uint256 previous = (base + (n - 1) * FIXED_1) / n;
         for (uint256 i = 0; i < N; i++) {
             uint256 pow = powFixed(previous, n - 1);

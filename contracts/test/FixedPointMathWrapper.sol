@@ -14,11 +14,11 @@ contract FixedPointMathWrapper {
         return a.divideFixed(b);
     }
 
-    function powFixed(uint256 base, uint8 exp) external pure returns (uint256 result) {
+    function powFixed(uint256 base, uint256 exp) external pure returns (uint256 result) {
         return base.powFixed(exp);
     }
 
-    function rootFixed(uint256 base, uint8 n) external pure returns (uint256) {
+    function rootFixed(uint256 base, uint256 n) external pure returns (uint256) {
         return base.rootFixed(n);
     }
 }

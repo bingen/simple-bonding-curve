@@ -45,7 +45,7 @@ contract SimpleBondingCurve is IBancorFormula {
         view
         returns (uint256)
     {
-        uint8 curveDegree = _connectorWeightToCurveDegree(_connectorWeight);
+        uint256 curveDegree = _connectorWeightToCurveDegree(_connectorWeight);
 
         return _calculatePurchaseReturn(_supply, _connectorBalance, curveDegree, _depositAmount);
     }
@@ -74,7 +74,7 @@ contract SimpleBondingCurve is IBancorFormula {
         view
         returns (uint256)
     {
-        uint8 curveDegree = _connectorWeightToCurveDegree(_connectorWeight);
+        uint256 curveDegree = _connectorWeightToCurveDegree(_connectorWeight);
 
         return _calculateSaleReturn(_supply, _connectorBalance, curveDegree, _sellAmount);
     }
@@ -98,7 +98,7 @@ contract SimpleBondingCurve is IBancorFormula {
     function calculatePurchaseReturn2(
         uint256 _supply,
         uint256 _connectorBalance,
-        uint8 _curveDegree,
+        uint256 _curveDegree,
         uint256 _depositAmount
     )
         public
@@ -125,7 +125,7 @@ contract SimpleBondingCurve is IBancorFormula {
     function calculateSaleReturn2(
         uint256 _supply,
         uint256 _connectorBalance,
-        uint8 _curveDegree,
+        uint256 _curveDegree,
         uint256 _sellAmount
     )
         public
@@ -152,7 +152,7 @@ contract SimpleBondingCurve is IBancorFormula {
     function _calculatePurchaseReturn(
         uint256 _supply,
         uint256 _connectorBalance,
-        uint8 _curveDegree,
+        uint256 _curveDegree,
         uint256 _depositAmount
     )
         internal
@@ -182,7 +182,7 @@ contract SimpleBondingCurve is IBancorFormula {
     function _calculateSaleReturn(
         uint256 _supply,
         uint256 _connectorBalance,
-        uint8 _curveDegree,
+        uint256 _curveDegree,
         uint256 _sellAmount
     )
         internal
@@ -210,9 +210,7 @@ contract SimpleBondingCurve is IBancorFormula {
         return _connectorBalance - tmp2;
     }
 
-    function _connectorWeightToCurveDegree(uint32 _connectorWeight) internal pure returns (uint8) {
-        // to avoid overflow on uint8 (and dividing by zero implicitly)
-        require(_connectorWeight >= MAX_WEIGHT / 256, ERROR_CONNECTOR_WEIGHT_TOO_LOW);
-        return uint8(MAX_WEIGHT / _connectorWeight - 1);
+    function _connectorWeightToCurveDegree(uint32 _connectorWeight) internal pure returns (uint256) {
+        return MAX_WEIGHT / _connectorWeight - 1;
     }
 }
