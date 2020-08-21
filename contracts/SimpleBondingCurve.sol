@@ -18,6 +18,8 @@ contract SimpleBondingCurve is IBancorFormula {
     using FixedPointMath for uint256;
 
     uint32 private constant MAX_WEIGHT = 1000000;
+    uint256 private constant ROOT_ITERATIONS = 3;
+    uint256 private constant ROOT_ERROR_THRESHOLD = 10**12; //1e-6
     string private constant ERROR_WRONG_INPUT_VALUES = "SBC_WRONG_INPUT_VALUES";
     string private constant ERROR_CONNECTOR_WEIGHT_TOO_LOW = "SBC_CONNECTOR_WEIGHT_TOO_LOW";
 
@@ -173,8 +175,8 @@ contract SimpleBondingCurve is IBancorFormula {
 
         uint256 result;
         uint256 baseN = _depositAmount.add(_connectorBalance);
-        result = baseN.divideFixed(_connectorBalance).rootFixed(_curveDegree + 1);
-        //result = baseN.divideFixed(_connectorBalance).rootFixed2(_curveDegree + 1, 1);
+        //result = baseN.divideFixed(_connectorBalance).rootFixed(_curveDegree + 1, ROOT_ERROR_THRESHOLD);
+        result = baseN.divideFixed(_connectorBalance).rootFixed2(_curveDegree + 1, ROOT_ITERATIONS, ROOT_ERROR_THRESHOLD);
         uint256 tmp = _supply.multiplyFixed(result);
         return tmp - _supply;
     }

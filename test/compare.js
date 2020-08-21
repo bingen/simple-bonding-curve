@@ -4,26 +4,30 @@ const path = require('path')
 const Bancor = artifacts.require('BancorFormula')
 const Simple = artifacts.require('SimpleBondingCurve')
 
-const fileNameBase = 'bonding_curve_comparison'
-const outputPathSale = path.join(__dirname, `${fileNameBase}_sale.csv`)
-const outputPathPurchase = path.join(__dirname, `${fileNameBase}_purchase.csv`)
+const OUTPUT_FOLDER = 'output'
+const FILE_NAME_BASE = 'bonding_curve_comparison'
+const outputPathSale = path.join(OUTPUT_FOLDER, `${FILE_NAME_BASE}_sale.csv`)
+const outputPathPurchase = path.join(OUTPUT_FOLDER, `${FILE_NAME_BASE}_purchase.csv`)
 
 contract('Simple bonding curve', (accounts) => {
   let bancor, simple
   let outputStreamSale, outputStreamPurchase
 
   before(async() => {
+    if (! fs.existsSync(OUTPUT_FOLDER)) fs.mkdirSync(OUTPUT_FOLDER)
+
     bancor = await Bancor.new()
     simple = await Simple.new()
     outputStreamSale = fs.createWriteStream(outputPathSale)
-    outputStreamSale.write('supply(s), connectorBalance(b), 1/r, sellAmount(k), real, bancor, simple, bancor error, simple error, bancor error %, simple error %, bancor gas, simple gas, gas increase %\n')
+    outputStreamSale.write('supply(s), connectorBalance(b), 1/r, sellAmount(k), real, bancor, simple, bancor error, simple error, bancor error %, bancor abs error %, simple error %, simple abs error %, bancor gas, simple gas, gas increase %\n')
     outputStreamPurchase = fs.createWriteStream(outputPathPurchase)
-    outputStreamPurchase.write('supply(s), connectorBalance(b), 1/r, buyAmount(p), real, bancor, simple, bancor error, simple error, bancor error %, simple error %, bancor gas, simple gas, gas increase %\n')
+    outputStreamPurchase.write('supply(s), connectorBalance(b), 1/r, buyAmount(p), real, bancor, simple, bancor error, simple error, bancor error %, bancor abs error %, simple error %, simple abs error %, bancor gas, simple gas, gas increase %\n')
   })
 
   //const supplies = [ 1000 ]
   const connectorBalances = [ 100 ]
-  const reverseReserveRatios = [ 1, 2, 3, 5, 10, 20, 50, 100, 1000 ]
+  //const reverseReserveRatios = [ 1, 2, 3, 5, 10, 20, 50, 100, 1000 ]
+  const reverseReserveRatios = [ 1, 2, 3, 5, 10 ]
   const divisors = [ 1000, 500, 333, 200, 100, 50, 25, 10, 5, 3, 2, 1.1, 1.05, 1.01, 1.005, 1.001, 1 ]
   //const reverseReserveRatios = [ 1000 ]
   //const divisors = [ 1.001 ]
@@ -45,85 +49,150 @@ contract('Simple bonding curve', (accounts) => {
     return r
   }
 
+  const writeOutput = ({
+    operation,
+    supply,
+    connectorBalance,
+    reverseReserveRatio,
+    amount,
+    realResult,
+    bancorResult,
+    bancorError,
+    bancorRelativeError,
+    bancorGas,
+    simpleResult,
+    simpleError,
+    simpleRelativeError,
+    simpleGas,
+    outputStream
+  }) => {
+    const computedLine = `${bancorError}, ${simpleError}, ${bancorRelativeError}, ${Math.abs(bancorRelativeError)}, ${simpleRelativeError}, ${Math.abs(simpleRelativeError)}, `
+    let computedGasLine
+    if (bancorResult == REVERT || simpleResult == REVERT) {
+      computedGasLine = '-'
+      if (operation == 'Sell') {
+        console.log(`\x1b[36m${operation}\x1b[0m revert: ${formatRevert(bancorResult)}\x1b[33m vs \x1b[0m${formatRevert(simpleResult)} at: `, `\x1b[36m${supply}\x1b[0m`, connectorBalance, `\x1b[32m${reverseReserveRatio}\x1b[0m`, `\x1b[36m${amount}\x1b[0m`, `${amount * 100 / supply}%`);
+      } else {
+        console.log(`\x1b[46m${operation}\x1b[0m: ${formatRevert(bancorResult)}\x1b[33m vs \x1b[0m${formatRevert(simpleResult)} at: `, supply, `\x1b[46m${connectorBalance}\x1b[0m`, `\x1b[32m${reverseReserveRatio}\x1b[0m`, `\x1b[46m${amount}\x1b[0m`, `${amount * 100 / connectorBalance}%`);
+      }
+    } else {
+      computedGasLine = `${(simpleGas - bancorGas) / bancorGas}`
+    }
+    const line = `${supply}, ${connectorBalance}, ${reverseReserveRatio}, ${amount}, ${realResult}, ` +
+          `${bancorResult}, ${simpleResult}, ` +
+          computedLine +
+          `${bancorGas}, ${simpleGas}, ` + computedGasLine
+    outputStream.write(line + '\n')
+  }
+
   const compareSale = async(supply, connectorBalance, reverseReserveRatio, sellAmount) => {
+    const realResult = realSale(supply, connectorBalance, reverseReserveRatio, sellAmount)
+
     let bancorResult
+    let bancorError
+    let bancorRelativeError
     let bancorGas
     try {
       bancorResult = (await bancor.calculateSaleReturn(supply, connectorBalance, 1e6 / reverseReserveRatio, sellAmount)).toNumber()
+      bancorError = bancorResult - realResult
+      bancorRelativeError = (bancorResult - realResult) / realResult
       bancorGas = await bancor.calculateSaleReturn.estimateGas(supply, connectorBalance, 1e6 / reverseReserveRatio, sellAmount)
     } catch (e) {
       bancorResult = REVERT
+      bancorError = '-'
+      bancorRelativeError = '-'
       bancorGas = '-'
     }
 
     let simpleResult
+    let simpleError
+    let simpleRelativeError
     let simpleGas
     try {
       simpleResult = (await simple.calculateSaleReturn2(supply, connectorBalance, reverseReserveRatio - 1, sellAmount)).toNumber()
+      simpleError = simpleResult - realResult
+      simpleRelativeError = (simpleResult - realResult) / realResult
       simpleGas = await simple.calculateSaleReturn2.estimateGas(supply, connectorBalance, reverseReserveRatio - 1, sellAmount)
     } catch (e) {
       simpleResult = REVERT
+      simpleError = '-'
+      simpleRelativeError = '-'
       simpleGas = '-'
     }
 
-    const realResult = realSale(supply, connectorBalance, reverseReserveRatio, sellAmount)
-
-    let computedLine, computedGasLine
-    if (bancorResult == REVERT || simpleResult == REVERT) {
-      computedLine = '-, -, -, -,'
-      computedGasLine = '-'
-      console.log(`\x1b[36mSell\x1b[0m revert: ${formatRevert(bancorResult)}\x1b[33m vs \x1b[0m${formatRevert(simpleResult)} at: `, `\x1b[36m${supply}\x1b[0m`, connectorBalance, `\x1b[32m${reverseReserveRatio}\x1b[0m`, `\x1b[36m${sellAmount}\x1b[0m`, `${sellAmount * 100 / supply}%`);
-    } else {
-      computedLine = `${bancorResult - realResult}, ${simpleResult - realResult}, ` +
-        `${(bancorResult - realResult) / realResult}, ${(simpleResult - realResult) / realResult}, `
-      computedGasLine = `${(simpleGas - bancorGas) / bancorGas}`
-    }
-    const line = `${supply}, ${connectorBalance}, ${reverseReserveRatio}, ${sellAmount}, ${realResult}, ` +
-          `${bancorResult}, ${simpleResult}, ` +
-          computedLine +
-          `${bancorGas}, ${simpleGas}, ` + computedGasLine
-    outputStreamSale.write(line + '\n')
+    writeOutput({
+      operation: 'Sell',
+      supply,
+      connectorBalance,
+      reverseReserveRatio,
+      amount: sellAmount,
+      realResult,
+      bancorResult,
+      bancorError,
+      bancorRelativeError,
+      bancorGas,
+      simpleResult,
+      simpleError,
+      simpleRelativeError,
+      simpleGas,
+      outputStream: outputStreamSale,
+    })
     //console.log('sale comparison', line)
   }
 
   const compareBuy = async(supply, connectorBalance, reverseReserveRatio, buyAmount) => {
+    const realResult = realPurchase(supply, connectorBalance, reverseReserveRatio, buyAmount)
+
     let bancorResult
+    let bancorError
+    let bancorRelativeError
     let bancorGas
     try {
       bancorResult = (await bancor.calculatePurchaseReturn(supply, connectorBalance, 1e6 / reverseReserveRatio, buyAmount)).toNumber()
+      bancorError = bancorResult - realResult
+      bancorRelativeError = (bancorResult - realResult) / realResult
       bancorGas = await bancor.calculatePurchaseReturn.estimateGas(supply, connectorBalance, 1e6 / reverseReserveRatio, buyAmount)
     } catch (e) {
       bancorResult = REVERT
+      bancorError = '-'
+      bancorRelativeError = '-'
       bancorGas = '-'
     }
 
     let simpleResult
+    let simpleError
+    let simpleRelativeError
     let simpleGas
     try {
       simpleResult = (await simple.calculatePurchaseReturn2(supply, connectorBalance, reverseReserveRatio - 1, buyAmount)).toNumber()
+      simpleError = simpleResult - realResult
+      simpleRelativeError = (simpleResult - realResult) / realResult
       simpleGas = await simple.calculatePurchaseReturn2.estimateGas(supply, connectorBalance, reverseReserveRatio - 1, buyAmount)
     } catch (e) {
+      console.log(e)
       simpleResult = REVERT
+      simpleError = '-'
+      simpleRelativeError = '-'
       simpleGas = '-'
     }
 
-    const realResult = realPurchase(supply, connectorBalance, reverseReserveRatio, buyAmount)
-
-    let computedLine, computedGasLine
-    if (bancorResult == REVERT || simpleResult == REVERT) {
-      computedLine = '-, -, -, -,'
-      computedGasLine = '-'
-      console.log(`\x1b[46mBuy\x1b[0m  revert: ${formatRevert(bancorResult)}\x1b[33m vs \x1b[0m${formatRevert(simpleResult)} at: `, supply, `\x1b[46m${connectorBalance}\x1b[0m`, `\x1b[32m${reverseReserveRatio}\x1b[0m`, `\x1b[46m${buyAmount}\x1b[0m`, `${buyAmount * 100 / connectorBalance}%`);
-    } else {
-      computedLine = `${bancorResult - realResult}, ${simpleResult - realResult}, ` +
-        `${(bancorResult - realResult) / realResult}, ${(simpleResult - realResult) / realResult}, `
-      computedGasLine = `${(simpleGas - bancorGas) / bancorGas}`
-    }
-    const line = `${supply}, ${connectorBalance}, ${reverseReserveRatio}, ${buyAmount}, ${realResult}, ` +
-          `${bancorResult}, ${simpleResult}, ` +
-          computedLine +
-          `${bancorGas}, ${simpleGas}, ` + computedGasLine
-    outputStreamPurchase.write(line + '\n')
+    writeOutput({
+      operation: 'Buy',
+      supply,
+      connectorBalance,
+      reverseReserveRatio,
+      amount: buyAmount,
+      realResult,
+      bancorResult,
+      bancorError,
+      bancorRelativeError,
+      bancorGas,
+      simpleResult,
+      simpleError,
+      simpleRelativeError,
+      simpleGas,
+      outputStream: outputStreamPurchase,
+    })
     //console.log('purchase comparison', line)
   }
 
@@ -158,6 +227,7 @@ contract('Simple bonding curve', (accounts) => {
     const buyAmounts = []
     const generateInputAmounts = (total) =>
           divisors.map(d => Math.floor(total / d)).filter(x => x > 0)
+    const generateMultiplierInputAmounts = (total) => divisors.map(d => total * d)
     await Promise.all(connectorBalances.map(
       connectorBalance => reverseReserveRatios.map(
         reverseReserveRatio => {
@@ -169,7 +239,8 @@ contract('Simple bonding curve', (accounts) => {
             connectorBalance,
             reverseReserveRatio,
             generateInputAmounts(supply), // sellAmounts
-            generateInputAmounts(connectorBalance) // buyAmounts
+            generateInputAmounts(connectorBalance).
+              concat(generateMultiplierInputAmounts(connectorBalance)) // buyAmounts
           )
         }
       ).reduce((acc, val) => acc.concat(val), [])
@@ -272,4 +343,24 @@ contract('Simple bonding curve', (accounts) => {
       })
     })
   }
+
+  context.only('Compare buy edge cases', () => {
+    it('Edge case without revert', async () => {
+      const connectorBalance = '1'
+      const reverseReserveRatio = 2
+      const supply = connectorBalance * reverseReserveRatio
+      const buyAmount = 1e27
+
+      await compareBuy(supply, connectorBalance, reverseReserveRatio, buyAmount)
+    })
+
+    it('Edge case with revert', async () => {
+      const connectorBalance = '1'
+      const reverseReserveRatio = 2
+      const supply = connectorBalance * reverseReserveRatio
+      const buyAmount = 7e38
+
+      await compareBuy(supply, connectorBalance, reverseReserveRatio, buyAmount)
+    })
+  })
 })
